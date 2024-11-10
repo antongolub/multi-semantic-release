@@ -80,6 +80,30 @@ test("Fetch only prerelease tags", async () => {
 
 	const tags = getTags("master", { cwd }, ["beta"]).sort();
 	expect(tags).toEqual(["msr-test-d@2.0.0-beta.1", "msr-test-c@2.0.0-beta.1"].sort());
+
+	// Add new testing files for a new release.
+	createNewTestingFiles(packages, cwd);
+	const shaPatch = gitCommitAll(cwd, "fix: add a patch");
+	expect(shaPatch).toBeTruthy();
+	gitPush(cwd);
+
+	// Capture output.
+	stdout = new WritableStreamBuffer();
+	stderr = new WritableStreamBuffer();
+
+	// Call multiSemanticRelease() for a second release
+	// Doesn't include plugins that actually publish.
+	// Change the master branch from release to prerelease to test bumping.
+	await multiSemanticRelease(
+		packages.map((folder) => `${folder}package.json`),
+		{
+			branches: [{ name: "master", prerelease: "beta" }, { name: "release" }],
+		},
+		{ cwd, stdout, stderr, env }
+	);
+
+	const tagsPatch = getTags("master", { cwd }, ["beta"]).sort();
+	expect(tagsPatch).toEqual(["msr-test-c@2.0.0-beta.1", "msr-test-c@2.0.0-beta.2", "msr-test-d@2.0.0-beta.1", "msr-test-d@2.0.0-beta.2"]);
 });
 
 test("Throws error if obtaining the tags fails", () => {

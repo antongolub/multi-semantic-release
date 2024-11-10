@@ -380,7 +380,7 @@ describe("multiSemanticRelease()", () => {
 		result = await multiSemanticRelease(
 			packages.map((folder) => `${folder}package.json`),
 			{
-				branches: [{ name: "master", prerelease: "beta" }, { name: "release" }],
+				branches: [{ name: "master", prerelease: "beta", channel: "beta" }, { name: "release" }],
 			},
 			{ cwd, stdout, stderr, env }
 		);
@@ -433,7 +433,61 @@ describe("multiSemanticRelease()", () => {
 				"msr-test-d": "2.0.0-beta.1",
 			},
 		});
-	}, 10000);
+
+		// Add new testing files for a new release.
+		createNewTestingFiles(packages, cwd);
+		const shaPatch = gitCommitAll(cwd, "fix: add a patch");
+		expect(shaPatch).toBeTruthy();
+		gitPush(cwd);
+
+		// Capture output.
+		stdout = new WritableStreamBuffer();
+		stderr = new WritableStreamBuffer();
+
+		// Call multiSemanticRelease() for a second release
+		// Doesn't include plugins that actually publish.
+		// Change the master branch from release to prerelease to test bumping.
+		result = await multiSemanticRelease(
+			packages.map((folder) => `${folder}package.json`),
+			{
+				branches: [{ name: "master", prerelease: "beta", channel: "beta" }, { name: "release" }],
+			},
+			{ cwd, stdout, stderr, env }
+		);
+
+		// Get stdout and stderr output.
+		const errpatch = stderr.getContentsAsString("utf8");
+		expect(errpatch).toBe(false);
+		const outpatch = stdout.getContentsAsString("utf8");
+		expect(outpatch).toMatch("Started multirelease! Loading 2 packages...");
+		expect(outpatch).toMatch("Loaded package msr-test-c");
+		expect(outpatch).toMatch("Loaded package msr-test-d");
+		expect(outpatch).toMatch("Queued 2 packages! Starting release...");
+		expect(outpatch).toMatch("Created tag msr-test-c@2.0.0-beta.2");
+		expect(outpatch).toMatch("Created tag msr-test-d@2.0.0-beta.2");
+		expect(outpatch).toMatch("Released 2 of 2 packages, semantically!");
+
+		expect(result[0].name).toBe("msr-test-c");
+		expect(result[0].result.nextRelease).toMatchObject({
+			gitHead: shaPatch,
+			gitTag: "msr-test-c@2.0.0-beta.2",
+			type: "patch",
+			version: "2.0.0-beta.2",
+		});
+
+		expect(result[1].result.nextRelease.notes).toMatch("# msr-test-d [2.0.0-beta.2]");
+
+		// ONLY 1 time.
+		expect(result).toHaveLength(2);
+
+		expect(require(`${cwd}/packages/c/package.json`)).toMatchObject({
+			dependencies: {
+				"msr-test-d": "2.0.0-beta.2",
+			},
+		});
+
+
+	}, 20000);
 	test("Two separate releases (changes in all packages with prereleases)", async () => {
 		const packages = ["packages/a/", "packages/b/", "packages/c/", "packages/d/"];
 

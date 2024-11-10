@@ -40,7 +40,7 @@ function isDirectory(path) {
 // Creates testing files on all specified folders.
 function createNewTestingFiles(folders, cwd) {
 	folders.forEach((fld) => {
-		writeFileSync(`${cwd}/${fld}test.txt`, fld);
+		writeFileSync(`${cwd}/${fld}test.txt`, `${fld}${Math.random()}`);
 	});
 }
 
